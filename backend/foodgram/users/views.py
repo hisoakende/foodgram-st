@@ -11,7 +11,8 @@ from users.models import Subscription, User
 from users.serializers import (
     CustomUserSerializer,
     SetAvatarSerializer,
-    SetPasswordSerializer
+    SetPasswordSerializer,
+    SubscriptionValidationSerializer
 )
 
 class UserViewSet(DjoserUserViewSet):
@@ -23,27 +24,22 @@ class UserViewSet(DjoserUserViewSet):
     @action(
         detail=True,
         methods=['post', 'delete'],
-        permission_classes=[IsAuthenticated]
+        permission_classes=[IsAuthenticated],
     )
     def subscribe(self, request, id=None):
         user = request.user
         author = get_object_or_404(User, id=id)
         
         if request.method == 'POST':
-            if user == author:
-                return Response(
-                    {'error': 'Нельзя подписаться на самого себя'},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-            if Subscription.objects.filter(user=user, author=author).exists():
-                return Response(
-                    {'error': 'Вы уже подписаны на этого автора'},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-            Subscription.objects.create(user=user, author=author)
-            serializer = UserWithRecipesSerializer(
-                author, context={'request': request}
+            serializer = SubscriptionValidationSerializer(
+                author,
+                data=request.data,
+                context={'request': request}
             )
+            serializer.is_valid(raise_exception=True)
+            
+            Subscription.objects.create(user=user, author=author)
+            serializer = UserWithRecipesSerializer(author, context={'request': request})
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         
         try:
@@ -96,13 +92,10 @@ class UserViewSet(DjoserUserViewSet):
             data=request.data, context={'request': request}
         )
         
-        if serializer.is_valid():
-            user.set_password(serializer.validated_data['new_password'])
-            user.save()
-            return Response(status=status.HTTP_204_NO_CONTENT)
-        return Response(
-            serializer.errors, status=status.HTTP_400_BAD_REQUEST
-        )
+        serializer.is_valid(raise_exception=True)
+        user.set_password(serializer.validated_data['new_password'])
+        user.save()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
     @action(
         detail=False,
@@ -122,12 +115,9 @@ class UserViewSet(DjoserUserViewSet):
         serializer = SetAvatarSerializer(
             data=request.data, context={'request': request}
         )
-        if serializer.is_valid():
-            serializer.save()
-            return Response(
-                {'avatar': request.build_absolute_uri(user.avatar.url)},
-                status=status.HTTP_200_OK
-            )
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
         return Response(
-            serializer.errors, status=status.HTTP_400_BAD_REQUEST
+            {'avatar': request.build_absolute_uri(user.avatar.url)},
+            status=status.HTTP_200_OK
         )

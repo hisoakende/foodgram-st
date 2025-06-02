@@ -1,9 +1,11 @@
 import uuid
 
 from django.contrib.auth import get_user_model
-from django.core.validators import MinValueValidator
+from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db import models
 from django.db.models import UniqueConstraint
+
+from recipes import consts
 
 User = get_user_model()
 
@@ -59,7 +61,10 @@ class Recipe(models.Model):
     )
     cooking_time = models.PositiveSmallIntegerField(
         'Время приготовления (в минутах)',
-        validators=[MinValueValidator(1)],
+        validators=[
+            MinValueValidator(consts.MIN_COOKING_TIME),
+            MaxValueValidator(consts.MAX_COOKING_TIME)
+        ],
     )
     pub_date = models.DateTimeField(
         'Дата публикации',
@@ -96,7 +101,10 @@ class IngredientInRecipe(models.Model):
     )
     amount = models.PositiveSmallIntegerField(
         'Количество',
-        validators=[MinValueValidator(1)],
+        validators=[
+            MinValueValidator(consts.MIN_AMOUNT_INGREDIENT_IN_RECIPE),
+            MaxValueValidator(consts.MAX_AMOUNT_INGREDIENT_IN_RECIPE)
+        ],
     )
 
     class Meta:

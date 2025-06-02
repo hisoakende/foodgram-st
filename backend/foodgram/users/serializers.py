@@ -64,14 +64,14 @@ class CustomUserSerializer(UserSerializer):
         )
 
     def get_is_subscribed(self, obj):
-        user = self.context.get('request').user
+        user = self.context['request'].user
         if user.is_anonymous:
             return False
         return Subscription.objects.filter(user=user, author=obj).exists()
 
     def get_avatar(self, obj):
         if obj.avatar:
-            return self.context.get('request').build_absolute_uri(obj.avatar.url)
+            return self.context['request'].build_absolute_uri(obj.avatar.url)
         return None
 
 
@@ -86,7 +86,7 @@ class SetAvatarSerializer(serializers.Serializer):
 
 
 class SetPasswordSerializer(serializers.Serializer):
-    new_password = serializers.CharField(required=True)
+    new_password = serializers.CharField(required=True, min_length=8)
     current_password = serializers.CharField(required=True)
 
     def validate_current_password(self, value):
@@ -95,9 +95,22 @@ class SetPasswordSerializer(serializers.Serializer):
             raise serializers.ValidationError('Неверный текущий пароль')
         return value
 
-    def validate_new_password(self, value):
-        if len(value) < 8:  # Исправлен символ &lt; на <
-            raise serializers.ValidationError(
-                'Пароль должен содержать не менее 8 символов'
-            )
-        return value
+
+class SubscriptionValidationSerializer(serializers.Serializer):
+
+    def validate(self, data):
+        request = self.context['request']
+        user = request.user
+        author = self.instance
+
+        if request.method == 'POST':
+            if user == author:
+                raise serializers.ValidationError(
+                    'Нельзя подписаться на самого себя'
+                )
+            if author.following.filter(user=user).exists():
+                raise serializers.ValidationError(
+                    'Вы уже подписаны на этого автора'
+                )
+
+        return data
